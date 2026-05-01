@@ -38,12 +38,11 @@ jobs:
         run: |
           ./compile.sh build \
             BOARD=orangepi-4pro \
-            BRANCH=mainline \
+            BRANCH=vendor \
             BUILD_MINIMAL=no \
             BUILD_DESKTOP=no \
             KERNEL_CONFIGURE=no \
             RELEASE=bookworm \
-            SKIP_EXTERNAL_DRIVERS=yes \
             COMPRESS_OUTPUTIMAGE=sha,img,xz \
             EXPERT=yes
         env:
