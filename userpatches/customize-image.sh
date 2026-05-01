@@ -1,7 +1,7 @@
 #!/bin/bash
 # =============================================================================
 #  Armbian customize-image.sh — Orange Pi 4 Pro
-#  Full AI Vision + Robotics Build
+#  AI Vision + Robotics + Tailscale Build
 #  Runs as root inside the image chroot during the Armbian build process.
 # =============================================================================
 set -e
@@ -13,11 +13,11 @@ echo "  Orange Pi 4 Pro — AI Vision + Robotics Image Setup"
 echo "============================================================"
 
 # ── Refresh apt cache first (required — chroot cache is empty on entry) ────────
-echo ">>> [0/9] Refreshing apt cache..."
+echo ">>> [0/10] Refreshing apt cache..."
 apt-get update -qq
 
 # ── Core development tools ────────────────────────────────────────────────────
-echo ">>> [1/9] Core dev tools..."
+echo ">>> [1/10] Core dev tools..."
 apt-get install -y --no-install-recommends \
     git curl wget vim nano tmux htop tree \
     build-essential cmake pkg-config ninja-build \
@@ -26,13 +26,13 @@ apt-get install -y --no-install-recommends \
     zip unzip p7zip-full lsb-release net-tools
 
 # ── Node.js 22 (Open WebUI / npm tooling) ────────────────────────────────────
-echo ">>> [2/9] Node.js 22..."
+echo ">>> [2/10] Node.js 22..."
 curl -fsSL https://deb.nodesource.com/setup_22.x | bash -
 apt-get install -y nodejs
 # npm is bundled with NodeSource nodejs — no separate upgrade needed in chroot
 
 # ── Computer Vision (OpenCV + GStreamer + FFmpeg) ─────────────────────────────
-echo ">>> [3/9] Computer Vision stack..."
+echo ">>> [3/10] Computer Vision stack..."
 apt-get install -y --no-install-recommends \
     python3-opencv libopencv-dev \
     v4l-utils libv4l-dev \
@@ -45,7 +45,7 @@ apt-get install -y --no-install-recommends libcamera-apps libcamera-dev 2>/dev/n
     echo "libcamera not available, skipping"
 
 # ── Python AI / ML stack ──────────────────────────────────────────────────────
-echo ">>> [4/9] Python AI/ML stack..."
+echo ">>> [4/10] Python AI/ML stack..."
 apt-get install -y --no-install-recommends \
     python3-numpy python3-scipy python3-matplotlib python3-pandas \
     python3-scikit-learn python3-pil python3-h5py \
@@ -59,7 +59,7 @@ pip3 install --break-system-packages \
     pyserial || echo "Warning: some pip packages skipped"
 
 # ── Robotics & Hardware Interface ─────────────────────────────────────────────
-echo ">>> [5/9] Robotics + Hardware..."
+echo ">>> [5/10] Robotics + Hardware..."
 apt-get install -y --no-install-recommends \
     i2c-tools python3-smbus \
     gpiod libgpiod-dev \
@@ -72,7 +72,7 @@ apt-get install -y --no-install-recommends arduino 2>/dev/null || \
     echo "arduino package not available, install manually post-boot"
 
 # ── Docker CE (for Ollama + ROS 2 + Open WebUI containers) ───────────────────
-echo ">>> [6/9] Docker CE..."
+echo ">>> [6/10] Docker CE..."
 curl -fsSL https://download.docker.com/linux/debian/gpg \
     | gpg --dearmor -o /usr/share/keyrings/docker.gpg
 echo "deb [arch=arm64 signed-by=/usr/share/keyrings/docker.gpg] \
@@ -81,24 +81,34 @@ https://download.docker.com/linux/debian bookworm stable" \
 apt-get update -qq
 apt-get install -y --no-install-recommends \
     docker-ce docker-ce-cli containerd.io docker-compose-plugin
-systemctl enable docker
+systemctl enable docker || true
 
 # ── Ollama (local LLM — CPU inference on ARM64) ───────────────────────────────
-echo ">>> [7/9] Ollama..."
+echo ">>> [7/10] Ollama..."
 curl -fsSL https://ollama.com/install.sh | sh || true
 systemctl enable ollama 2>/dev/null || true
 
 # ── IDEs: Thonny (Python/robotics) + Geany (lightweight general IDE) ─────────
-echo ">>> [8/9] IDEs..."
+echo ">>> [8/10] IDEs..."
 apt-get install -y --no-install-recommends \
     thonny \
-    geany geany-plugins
+    geany geany-plugins || echo "Some IDE packages unavailable, skipping"
 
 # ── Remote desktop: xRDP so you can connect from your Mac ────────────────────
-echo ">>> [9/9] Remote Desktop (xRDP)..."
+echo ">>> [9/10] Remote Desktop (xRDP)..."
 apt-get install -y --no-install-recommends xrdp
-systemctl enable xrdp
+systemctl enable xrdp || true
 adduser xrdp ssl-cert 2>/dev/null || true
+
+# ── Tailscale (VPN / mesh networking) ────────────────────────────────────────
+echo ">>> [10/10] Tailscale..."
+curl -fsSL https://pkgs.tailscale.com/stable/debian/bookworm.noarmor.gpg \
+    -o /usr/share/keyrings/tailscale-archive-keyring.gpg
+curl -fsSL https://pkgs.tailscale.com/stable/debian/bookworm.tailscale-keyring.list \
+    | tee /etc/apt/sources.list.d/tailscale.list
+apt-get update -qq
+apt-get install -y tailscale
+systemctl enable tailscaled || true
 
 # ── Post-boot helper script ───────────────────────────────────────────────────
 mkdir -p /etc/skel/Desktop
@@ -150,6 +160,11 @@ cat > /etc/skel/Desktop/QUICK-START.txt << 'EOF'
 
 9. ADD YOURSELF TO DOCKER GROUP:
    sudo usermod -aG docker $USER && newgrp docker
+
+10. TAILSCALE (mesh VPN):
+    sudo tailscale up
+    tailscale ip -4    # show your Tailscale IP
+    tailscale status   # see connected devices
 EOF
 
 chmod 644 /etc/skel/Desktop/QUICK-START.txt
